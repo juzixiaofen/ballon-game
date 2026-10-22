@@ -1,0 +1,713 @@
+
+<div id="game">
+  <h1>🎈 Balloon Sorting Challenge</h1>
+  <p class="subtitle">
+    Accessibility Training — Color Vision Challenge
+  </p>
+
+  <p>
+    <b>Mission:</b> Sort 24 mixed-up balloons
+    into 8 color baskets.
+    Each color has 3 balloons.
+  </p>
+
+  <p>
+    Tap a balloon in the pile, then tap
+    the basket where you think it belongs.
+  </p>
+
+  <div id="board" class="simulated">
+    <section class="panel">
+      <h2>Mixed Balloon Pile</h2>
+      <div id="pool"></div>
+      <p class="hint">
+        Remove balloons to uncover the ones underneath.
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2>Sorting Baskets</h2>
+      <div id="bins"></div>
+    </section>
+  </div>
+
+  <p id="progress">Sorted: 0 / 24</p>
+
+  <div class="actions">
+    <button id="checkBtn" onclick="checkResults()">
+      Check Results & Reveal Colors
+    </button>
+
+    <button class="secondary" onclick="restartGame()">
+      New Round
+    </button>
+  </div>
+
+  <div id="result" hidden></div>
+
+  <div id="developer" hidden>
+    <h2>Developer Phase</h2>
+    <p>
+      The original game relied on color alone.
+      Add visible color names to help players
+      identify the balloons.
+    </p>
+
+    <button onclick="applyFix()">
+      Add Color Labels & Try Again
+    </button>
+  </div>
+
+  <p class="note">
+    This is an approximate deuteranopia simulation.
+    Color perception varies between individuals.
+  </p>
+</div>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 12px;
+  background: #eef2f9;
+  color: #17223a;
+  font-family: Arial, sans-serif;
+}
+
+#game {
+  max-width: 1200px;
+  margin: 15px auto;
+  padding: 22px;
+  background: white;
+  border-radius: 20px;
+}
+
+h1 {
+  margin-top: 0;
+}
+
+.subtitle,
+.note,
+.hint {
+  color: #63718a;
+}
+
+.note,
+.hint {
+  font-size: 13px;
+}
+
+#board {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.panel {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d5deed;
+  border-radius: 14px;
+}
+
+/* ===== OVERLAPPING BALLOON PILE ===== */
+
+#pool {
+  position: relative;
+  width: 100%;
+  height: 370px;
+  overflow: hidden;
+  border: 1px solid #e0e6f1;
+  border-radius: 15px;
+  background: #f8faff;
+}
+
+/*
+  Every balloon is positioned around
+  the exact same center point.
+  Small offsets create one messy pile.
+*/
+
+#pool .ball {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 85px;
+  height: 115px;
+  margin: 0;
+  padding: 4px 2px;
+
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  cursor: pointer;
+  touch-action: manipulation;
+
+  transform:
+    translate(-50%, -50%)
+    translate(var(--dx), var(--dy))
+    rotate(var(--angle));
+
+  z-index: var(--layer);
+}
+
+#pool .ball.selected {
+  z-index: 100 !important;
+  outline: 3px solid #315cdb;
+  background: #e7efff;
+}
+
+#pool .ball.placed {
+  display: none;
+}
+
+/* ===== BALLOON SHAPE ===== */
+
+.balloon-art {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+/*
+  The entire balloon is filtered,
+  including the body and knot.
+  Labels are outside the filtered area.
+*/
+
+.simulated .balloon-art {
+  filter: url(#deut);
+}
+
+.body {
+  width: 55px;
+  height: 70px;
+  background: var(--c);
+  border-radius: 49% 49% 46% 46%;
+  box-shadow:
+    inset 7px 7px 10px #ffffff35,
+    inset -8px -8px 12px #00000020;
+}
+
+.knot {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 10px solid var(--c);
+}
+
+.string {
+  width: 2px;
+  height: 17px;
+  background: #9ca4b3;
+}
+
+/* ===== COLOR LABELS ===== */
+
+.color-label {
+  display: block;
+  width: 100%;
+  padding: 4px 2px;
+  margin-top: 4px;
+  border: 1px solid #b8c5db;
+  border-radius: 5px;
+  background: white;
+  color: #17223a;
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+/*
+  During the developer round,
+  show the selected balloon above
+  the pile with its label visible.
+*/
+
+#pool .ball.has-label {
+  height: 135px;
+}
+
+#pool .ball.has-label.selected {
+  z-index: 1000 !important;
+}
+
+/* ===== BASKETS ===== */
+
+#bins {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.bin {
+  min-height: 165px;
+  padding: 10px;
+  border: 2px dashed #9baecb;
+  border-radius: 12px;
+  background: #f7f9fe;
+  cursor: pointer;
+}
+
+.bin h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.bin small {
+  display: block;
+  margin-bottom: 8px;
+  color: #62718a;
+  text-align: center;
+}
+
+.contents {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.mini {
+  position: relative;
+  min-height: 90px;
+  padding: 4px 2px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: white;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mini .body {
+  width: 36px;
+  height: 48px;
+}
+
+.mini .string {
+  height: 8px;
+}
+
+.mini .color-label {
+  font-size: 10px;
+  padding: 3px 1px;
+}
+
+.mini.correct {
+  border-color: #16a34a;
+}
+
+.mini.incorrect {
+  border-color: #dc2626;
+}
+
+.mark {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  font-weight: bold;
+}
+
+.correct .mark {
+  color: #15803d;
+}
+
+.incorrect .mark {
+  color: #dc2626;
+}
+
+/* ===== BUTTONS AND RESULTS ===== */
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actions button,
+#developer button {
+  padding: 11px 15px;
+  border: none;
+  border-radius: 9px;
+  background: #345bd1;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+}
+
+.actions .secondary {
+  background: #e4eaf4;
+  color: #17223a;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#result {
+  margin-top: 15px;
+  padding: 15px;
+  border-radius: 12px;
+  background: #edf7ee;
+}
+
+#developer {
+  margin-top: 15px;
+  padding: 15px;
+  border: 1px solid #d5deed;
+  border-radius: 12px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 700px) {
+  #board {
+    grid-template-columns: 1fr;
+  }
+
+  #game {
+    padding: 12px;
+  }
+
+  #pool {
+    height: 310px;
+  }
+
+  .bin {
+    min-height: 145px;
+  }
+}
+</style>
+
+<!-- COLOR VISION SIMULATION -->
+
+<svg
+  width="0"
+  height="0"
+  style="position:absolute"
+  aria-hidden="true"
+>
+  <defs>
+    <filter
+      id="deut"
+      color-interpolation-filters="sRGB"
+    >
+      <feColorMatrix
+        type="matrix"
+        values="
+          0.367 0.861 -0.228 0 0
+          0.280 0.673 0.047 0 0
+         -0.012 0.043 0.969 0 0
+          0 0 0 1 0
+        "
+      />
+    </filter>
+  </defs>
+</svg>
+
+<script>
+const palette = {
+  "Red": "#e34a55",
+  "Dark Red": "#a5444d",
+  "Green": "#52a76b",
+  "Olive Green": "#87954b",
+  "Blue": "#3275df",
+  "Purple": "#9257c6",
+  "Yellow": "#f3cc36",
+  "Orange": "#ee982e"
+};
+
+const names = Object.keys(palette);
+
+let items = [];
+let selected = null;
+let revealed = false;
+let labels = false;
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+/*
+  Assign all 24 balloons to one compact area.
+  Their centers are at most about 38 pixels
+  from the pile center.
+*/
+
+function pilePosition(index) {
+  const angle = index * 2.39996;
+  const radius = Math.sqrt(index / 24) * 38;
+
+  return {
+    dx: Math.cos(angle) * radius,
+    dy: Math.sin(angle) * radius,
+    rotation: ((index * 37) % 51) - 25
+  };
+}
+
+function restartGame() {
+  items = [];
+
+  names.forEach(color => {
+    for (let i = 0; i < 3; i++) {
+      items.push({
+        color: color,
+        bin: null
+      });
+    }
+  });
+
+  shuffle(items);
+
+  selected = null;
+  revealed = false;
+  labels = false;
+
+  document.getElementById("result").hidden = true;
+  document.getElementById("developer").hidden = true;
+
+  render();
+}
+
+function balloonArt(color) {
+  return `
+    <span
+      class="balloon-art"
+      style="--c:${palette[color]}"
+    >
+      <span class="body"></span>
+      <span class="knot"></span>
+      <span class="string"></span>
+    </span>
+  `;
+}
+
+function render() {
+  const pool = document.getElementById("pool");
+  const bins = document.getElementById("bins");
+  const board = document.getElementById("board");
+
+  board.classList.toggle("simulated", !revealed);
+
+  pool.innerHTML = "";
+  bins.innerHTML = "";
+
+  /* ===== DRAW OVERLAPPING BALLOONS ===== */
+
+  items.forEach((item, index) => {
+    const button = document.createElement("button");
+
+    button.type = "button";
+    button.className = "ball";
+
+    const position = pilePosition(index);
+
+    button.style.setProperty(
+      "--dx",
+      position.dx + "px"
+    );
+
+    button.style.setProperty(
+      "--dy",
+      position.dy + "px"
+    );
+
+    button.style.setProperty(
+      "--angle",
+      position.rotation + "deg"
+    );
+
+    button.style.setProperty(
+      "--layer",
+      index + 1
+    );
+
+    if (selected === index) {
+      button.classList.add("selected");
+    }
+
+    if (item.bin !== null) {
+      button.classList.add("placed");
+    }
+
+    if (labels) {
+      button.classList.add("has-label");
+    }
+
+    const textLabel = labels
+      ? `<span class="color-label">${item.color}</span>`
+      : "";
+
+    button.innerHTML =
+      balloonArt(item.color) + textLabel;
+
+    button.setAttribute(
+      "aria-label",
+      labels
+        ? `${item.color} balloon`
+        : `Balloon ${index + 1}`
+    );
+
+    button.onclick = () => {
+      if (revealed || item.bin !== null) return;
+
+      selected = index;
+      render();
+    };
+
+    pool.appendChild(button);
+  });
+
+  /* ===== DRAW BASKETS ===== */
+
+  names.forEach(basketName => {
+    const bin = document.createElement("div");
+    bin.className = "bin";
+
+    const assigned = items.filter(
+      item => item.bin === basketName
+    );
+
+    let content = "";
+
+    assigned.forEach(item => {
+      const isCorrect =
+        item.color === basketName;
+
+      let status = "";
+      let mark = "";
+
+      if (revealed) {
+        status = isCorrect
+          ? "correct"
+          : "incorrect";
+
+        mark = `
+          <span class="mark">
+            ${isCorrect ? "✓" : "✕"}
+          </span>
+        `;
+      }
+
+      const textLabel =
+        (revealed || labels)
+          ? `<span class="color-label">${item.color}</span>`
+          : "";
+
+      content += `
+        <div class="mini ${status}">
+          ${balloonArt(item.color)}
+          ${mark}
+          ${textLabel}
+        </div>
+      `;
+    });
+
+    bin.innerHTML = `
+      <h3>${basketName}</h3>
+      <small>${assigned.length} balloons</small>
+      <div class="contents">
+        ${content}
+      </div>
+    `;
+
+    bin.onclick = () => {
+      if (revealed || selected === null) return;
+
+      items[selected].bin = basketName;
+      selected = null;
+
+      render();
+    };
+
+    bins.appendChild(bin);
+  });
+
+  const count = items.filter(
+    item => item.bin !== null
+  ).length;
+
+  document.getElementById("progress").textContent =
+    `Sorted: ${count} / ${items.length}`;
+
+  document.getElementById("checkBtn").disabled =
+    count !== items.length || revealed;
+}
+
+function checkResults() {
+  if (items.some(item => item.bin === null)) {
+    return;
+  }
+
+  revealed = true;
+
+  const correctCount = items.filter(
+    item => item.color === item.bin
+  ).length;
+
+  const result = document.getElementById("result");
+  result.hidden = false;
+
+  result.innerHTML = `
+    <h2>
+      Results: ${correctCount} / ${items.length} correct
+    </h2>
+
+    <p>
+      The color vision simulation has been removed.
+      All balloons now show their original colors.
+    </p>
+
+    <p>✓ Green border = Correct</p>
+    <p>✕ Red border = Incorrect</p>
+  `;
+
+  document.getElementById("developer").hidden = false;
+
+  render();
+}
+
+function applyFix() {
+  /*
+    Reset basket assignments but keep the
+    same balloon order and pile positions.
+  */
+
+  items.forEach(item => {
+    item.bin = null;
+  });
+
+  selected = null;
+  revealed = false;
+  labels = true;
+
+  document.getElementById("result").hidden = true;
+  document.getElementById("developer").hidden = true;
+
+  render();
+}
+
+restartGame();
+</script>
